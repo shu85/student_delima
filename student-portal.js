@@ -74,15 +74,15 @@ async function searchStudentByIC(icNumber) {
 function displayResults(data) {
     resultsContainer.innerHTML = `
         <div class="result-card">
+            <div class="result-label">Student Name</div>
+            <div class="result-value" style="font-size: 1.1rem; color: #fff; text-transform: uppercase;">${data.name || 'N/A'}</div>
+        </div>
+
+        <div class="result-card">
             <div class="result-label">DELIMA ID</div>
             <div class="result-value">${data.delimaId || 'N/A'}</div>
-        </div>
-        
-        <div class="result-card">
-            <div class="result-label">Email Address</div>
-            <div class="result-value">${data.email || 'N/A'}</div>
-            <button class="copy-btn" onclick="copyToClipboard('${data.email}', this)">
-                📋 Copy Email
+            <button class="copy-btn" onclick="copyToClipboard('${data.delimaId}', this)">
+                📋 Copy ID
             </button>
         </div>
         
@@ -96,8 +96,8 @@ function displayResults(data) {
         
         <div style="margin-top: 1rem; padding: 1rem; background: rgba(102, 126, 234, 0.1); border-radius: 12px; border-left: 4px solid #667eea;">
             <small style="color: var(--text-secondary); line-height: 1.6;">
-                <strong>Important:</strong> Keep your credentials safe and do not share them with anyone. 
-                Use these credentials to login to your DELIMA account.
+                <strong>Important:</strong> Keep your credentials safe. 
+                Your full email is <strong>${data.email}</strong>
             </small>
         </div>
     `;
