@@ -165,41 +165,49 @@ async function readExcelFile(file) {
             try {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
-
-                // Get first sheet
-                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-
-                // Parse data (skip header row)
                 const students = [];
-                for (let i = 1; i < jsonData.length; i++) {
-                    const row = jsonData[i];
 
-                    // Skip empty rows
-                    if (!row || row.length === 0 || !row[2]) continue;
+                // Loop through ALL sheets
+                workbook.SheetNames.forEach(sheetName => {
+                    const sheet = workbook.Sheets[sheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-                    // Extract data based on column positions
-                    // Columns: BIL, NAMA PENUH, NO. KP, ID DELIMA, KATA LALUAN
-                    const bil = String(row[0] || '').trim();
-                    const namaPenuh = String(row[1] || '').trim();
-                    const ic = String(row[2] || '').trim();
-                    const delimaId = String(row[3] || '').trim();
-                    const password = String(row[4] || '').trim();
+                    // Parse data (skip header row)
+                    for (let i = 1; i < jsonData.length; i++) {
+                        const row = jsonData[i];
 
-                    // Validate IC number
-                    if (ic && ic.length >= 10) {
-                        // Generate email from DELIMA ID
-                        const email = delimaId ? `${delimaId.toLowerCase()}@delima.edu.my` : 'N/A';
+                        // Skip empty rows
+                        if (!row || row.length === 0 || !row[2]) continue;
 
-                        students.push({
-                            ic: ic,
-                            name: namaPenuh || 'N/A',
-                            delimaId: delimaId || 'N/A',
-                            email: email,
-                            password: password || 'N/A'
-                        });
+                        // Extract data based on column positions
+                        // Columns: BIL, NAMA PENUH, NO. KP, ID DELIMA, KATA LALUAN
+                        const bil = String(row[0] || '').trim();
+                        const namaPenuh = String(row[1] || '').trim();
+                        let ic = String(row[2] || '').trim();
+                        const delimaId = String(row[3] || '').trim();
+                        const password = String(row[4] || '').trim();
+
+                        // Fix: Pad IC with leading zero if less than 12 digits
+                        if (ic && /^\d+$/.test(ic) && ic.length < 12) {
+                            ic = ic.padStart(12, '0');
+                        }
+
+                        // Validate IC number
+                        if (ic && ic.length >= 10) {
+                            // Generate email from DELIMA ID
+                            const email = delimaId ? `${delimaId.toLowerCase()}@delima.edu.my` : 'N/A';
+
+                            students.push({
+                                ic: ic,
+                                name: namaPenuh || 'N/A',
+                                delimaId: delimaId || 'N/A',
+                                email: email,
+                                password: password || 'N/A',
+                                sourceSheet: sheetName // Track source sheet
+                            });
+                        }
                     }
-                }
+                });
 
                 resolve(students);
             } catch (error) {

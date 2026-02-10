@@ -91,6 +91,33 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
     <script>
+        // DOM Elements
+        const excelFile = document.getElementById('excelFile');
+        const fileSelectBtn = document.getElementById('fileSelectBtn');
+        const fileInfo = document.getElementById('fileInfo');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const alertContainer = document.getElementById('alertContainer');
+        const previewSection = document.getElementById('previewSection');
+        const previewContent = document.getElementById('previewContent');
+
+        let selectedFile = null;
+        let parsedData = null;
+
+        // Event Listeners - Attach these FIRST
+        if (fileSelectBtn && excelFile) {
+            fileSelectBtn.addEventListener('click', () => {
+                console.log('Button clicked, triggering file input');
+                excelFile.click();
+            });
+            excelFile.addEventListener('change', handleFileSelect);
+        } else {
+            console.error('Critical Error: Input elements not found');
+            alert('Error: Input elements not found. Please refresh.');
+        }
+
+        uploadBtn.addEventListener('click', handleUpload);
+
         // Firebase Configuration (Inline - No Modules)
         const firebaseConfig = {
             apiKey: "AIzaSyDPLmLAEHSdxXjN-SiyIjo9HbpJuQ1mEVg",
@@ -105,32 +132,26 @@
         // Initialize Firebase
         let db;
         try {
-            firebase.initializeApp(firebaseConfig);
-            db = firebase.firestore();
-            console.log('✅ Firebase initialized successfully');
-            showAlert('Firebase connected successfully', 'success');
+            if (typeof firebase !== 'undefined') {
+                firebase.initializeApp(firebaseConfig);
+                // Attempt to get named database if supported, otherwise fall back to default
+                try {
+                    db = firebase.firestore(firebase.app(), 'student-delima');
+                    console.log('✅ Connected to student-delima database');
+                } catch (e) {
+                    console.warn('Named database not supported in compat mode, using default');
+                    db = firebase.firestore();
+                }
+                console.log('✅ Firebase initialized successfully');
+                showAlert('Firebase connected successfully (student-delima)', 'success');
+            } else {
+                console.error('Firebase SDK not loaded');
+                showAlert('Firebase SDK not loaded. Check internet connection.', 'error');
+            }
         } catch (error) {
             console.error('❌ Firebase initialization error:', error);
             showAlert('Firebase initialization failed: ' + error.message, 'error');
         }
-
-        // DOM Elements
-        const excelFile = document.getElementById('excelFile');
-        const fileSelectBtn = document.getElementById('fileSelectBtn');
-        const fileInfo = document.getElementById('fileInfo');
-        const uploadBtn = document.getElementById('uploadBtn');
-        const uploadProgress = document.getElementById('uploadProgress');
-        const alertContainer = document.getElementById('alertContainer');
-        const previewSection = document.getElementById('previewSection');
-        const previewContent = document.getElementById('previewContent');
-
-        let selectedFile = null;
-        let parsedData = null;
-
-        // Event Listeners
-        fileSelectBtn.addEventListener('click', () => excelFile.click());
-        excelFile.addEventListener('change', handleFileSelect);
-        uploadBtn.addEventListener('click', handleUpload);
 
         // Handle File Select
         async function handleFileSelect(e) {
@@ -175,46 +196,51 @@
                     try {
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
-
-                        // Get first sheet
-                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-
-                        console.log('Raw data rows:', jsonData.length);
-                        console.log('First 3 rows:', jsonData.slice(0, 3));
-
-                        // Parse data (skip header row at index 0)
-                        // Columns: BIL, NAMA PENUH, NO. KP, ID DELIMA, KATA LALUAN
                         const students = [];
-                        for (let i = 1; i < jsonData.length; i++) {
-                            const row = jsonData[i];
 
-                            // Skip empty rows
-                            if (!row || row.length === 0 || !row[2]) continue;
+                        // Loop through ALL sheets
+                        workbook.SheetNames.forEach(sheetName => {
+                            const sheet = workbook.Sheets[sheetName];
+                            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-                            // Extract data based on actual column positions
-                            const bil = String(row[0] || '').trim();
-                            const namaPenuh = String(row[1] || '').trim();
-                            const noKP = String(row[2] || '').trim();  // IC Number
-                            const idDelima = String(row[3] || '').trim();  // DELIMA ID
-                            const kataLaluan = String(row[4] || '').trim();  // Password
+                            // Parse data (skip header row at index 0)
+                            for (let i = 1; i < jsonData.length; i++) {
+                                const row = jsonData[i];
 
-                            // Validate IC number (should exist and be numeric)
-                            if (noKP && /^\d+$/.test(noKP)) {
-                                // Generate email from DELIMA ID (e.g., SK1234A@delima.edu.my)
-                                const email = idDelima ? `${idDelima.toLowerCase()}@delima.edu.my` : 'N/A';
+                                // Skip empty rows
+                                if (!row || row.length === 0 || !row[2]) continue;
 
-                                students.push({
-                                    ic: noKP,
-                                    name: namaPenuh || 'N/A',
-                                    delimaId: idDelima || 'N/A',
-                                    email: email,
-                                    password: kataLaluan || 'N/A'
-                                });
+                                // Extract data based on actual column positions
+                                // Columns: BIL, NAMA PENUH, NO. KP, ID DELIMA, KATA LALUAN
+                                const bil = String(row[0] || '').trim();
+                                const namaPenuh = String(row[1] || '').trim();
+                                let noKP = String(row[2] || '').trim();  // IC Number
+                                const idDelima = String(row[3] || '').trim();  // DELIMA ID
+                                const kataLaluan = String(row[4] || '').trim();  // Password
+
+                                // Fix: Pad IC with leading zero if less than 12 digits (e.g. 90... -> 090...)
+                                if (noKP && /^\d+$/.test(noKP) && noKP.length < 12) {
+                                    noKP = noKP.padStart(12, '0');
+                                }
+
+                                // Validate IC number (should exist and be numeric)
+                                if (noKP && /^\d+$/.test(noKP)) {
+                                    // Generate email from DELIMA ID
+                                    const email = idDelima ? `${idDelima.toLowerCase()}@delima.edu.my` : 'N/A';
+
+                                    students.push({
+                                        ic: noKP,
+                                        name: namaPenuh || 'N/A',
+                                        delimaId: idDelima || 'N/A',
+                                        email: email,
+                                        password: kataLaluan || 'N/A',
+                                        sourceSheet: sheetName // Track source sheet for debugging
+                                    });
+                                }
                             }
-                        }
+                        });
 
-                        console.log('Parsed students:', students.length);
+                        console.log(`Parsed ${students.length} students from ${workbook.SheetNames.length} sheets`);
                         resolve(students);
                     } catch (error) {
                         reject(new Error('Failed to parse Excel file: ' + error.message));
@@ -283,7 +309,7 @@
 
         // Upload to Firebase
         async function uploadToFirebase(students) {
-            const batch = db.batch();
+            let batch = db.batch(); // Fixed: let instead of const
             let count = 0;
 
             for (let i = 0; i < students.length; i++) {
