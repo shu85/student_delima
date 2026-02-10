@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Admin Panel - SMK Kampung Nangka Student Portal">
+    <title>Admin Panel - Student Portal (Standalone)</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="app-background"></div>
+
+    <div class="container">
+        <!-- Login Page -->
+        <div id="loginPage">
+            <header class="header">
+                <h1 class="logo">🔐 Admin Login (Standalone)</h1>
+                <p class="subtitle">SMK Kampung Nangka Student Portal Administration</p>
+            </header>
+
+            <div class="card" style="max-width: 500px; margin: 0 auto;">
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="userId" class="form-label">User ID</label>
+                        <input type="text" id="userId" class="form-input" placeholder="Enter admin user ID" required
+                            autocomplete="username">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" id="password" class="form-input" placeholder="Enter password" required
+                            autocomplete="current-password">
+                    </div>
+
+                    <div id="loginAlert"></div>
+
+                    <button type="submit" class="btn btn-primary btn-block" id="loginBtn">
+                        Login to Admin Panel
+                    </button>
+                    <div class="text-center mt-2"
+                        style="font-size: 0.8rem; color: var(--text-secondary); opacity: 0.7;">
+                        Default: admin / 12345678
+                    </div>
+                </form>
+
+                <div class="text-center mt-2">
+                    <a href="index.html"
+                        style="color: var(--text-secondary); text-decoration: none; font-size: 0.875rem;">
+                        ← Back to Student Portal
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Page -->
+        <div id="dashboardPage" class="hidden">
+            <header class="header">
+                <h1 class="logo">📊 Admin Dashboard</h1>
+                <p class="subtitle">Student Data Management</p>
+                <div style="font-size: 0.875rem; color: #4facfe; margin-top: 0.5rem;">
+                    Database: student-delima
+                </div>
+            </header>
+
+            <div class="card" style="max-width: 800px; margin: 0 auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                    <h2 style="font-size: 1.5rem; font-weight: 600;">Upload Student Data</h2>
+                    <button class="btn btn-secondary" id="logoutBtn">
+                        Logout
+                    </button>
+                </div>
+
+                <div id="dashboardAlert"></div>
+
+                <!-- File Upload Section -->
+                <div class="form-group">
+                    <label for="excelFile" class="form-label">Select Excel File</label>
+                    <div style="position: relative;">
+                        <input type="file" id="excelFile" accept=".xlsx,.xls" style="display: none;">
+                        <button type="button" class="btn btn-secondary btn-block" id="fileSelectBtn">
+                            📁 Choose Excel File
+                        </button>
+                    </div>
+                    <div id="fileInfo" class="mt-1" style="color: var(--text-secondary); font-size: 0.875rem;"></div>
+                </div>
+
+                <button class="btn btn-success btn-block" id="uploadBtn" disabled>
+                    <span id="uploadBtnText">Upload to Firebase</span>
+                </button>
+
+                <!-- Upload Progress -->
+                <div id="uploadProgress" class="hidden mt-2"
+                    style="max-height: 300px; overflow-y: auto; background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 12px; font-family: monospace;">
+                </div>
+
+                <!-- Instructions -->
+                <div
+                    style="margin-top: 2rem; padding: 1.5rem; background: rgba(255, 255, 255, 0.05); border-radius: 12px;">
+                    <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem;">📝 Instructions</h3>
+                    <ul style="color: var(--text-secondary); line-height: 1.8; padding-left: 1.5rem;">
+                        <li><strong>Note:</strong> Used for initial setup or bulk updates.</li>
+                        <li>Excel columns: BIL, NAMA PENUH, NO. KP, ID DELIMA, KATA LALUAN</li>
+                        <li><strong>Multi-Sheet:</strong> Data from ALL sheets will be merged.</li>
+                        <li><strong>Auto-Fix:</strong> IC numbers less than 12 digits will be padded with '0'.</li>
+                        <li>Duplicate ICs will update existing records.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SheetJS -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+
+    <!-- Firebase SDK (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <script>
+        // --- CONFIGURATION ---
+        const ADMIN_CREDENTIALS = {
+            userId: 'admin',
+            password: '12345678'
+        };
+        const SESSION_KEY = 'admin_session';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDPLmLAEHSdxXjN-SiyIjo9HbpJuQ1mEVg",
+            authDomain: "kns-hub-412a6.firebaseapp.com",
+            projectId: "kns-hub-412a6",
+            storageBucket: "kns-hub-412a6.firebasestorage.app",
+            messagingSenderId: "404861589600",
+            appId: "1:404861589600:web:03753ff77f32c5c0150b05",
+            measurementId: "G-5SFK7Z5T5E"
+        };
+
+        // --- DOM ELEMENTS ---
+        const loginPage = document.getElementById('loginPage');
+        const dashboardPage = document.getElementById('dashboardPage');
+        const loginForm = document.getElementById('loginForm');
+        const userIdInput = document.getElementById('userId');
+        const passwordInput = document.getElementById('password');
+        const loginBtn = document.getElementById('loginBtn');
+        const loginAlert = document.getElementById('loginAlert');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const dashboardAlert = document.getElementById('dashboardAlert');
+        const excelFile = document.getElementById('excelFile');
+        const fileSelectBtn = document.getElementById('fileSelectBtn');
+        const fileInfo = document.getElementById('fileInfo');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadProgress = document.getElementById('uploadProgress');
+
+        let db;
+        let selectedFile = null;
+
+        // --- PRE-INIT: SETUP EVENT LISTENERS ---
+        // We attach these immediately so buttons work even if Firebase lags
+        loginForm.addEventListener('submit', handleLogin);
+        logoutBtn.addEventListener('click', handleLogout);
+
+        if (fileSelectBtn && excelFile) {
+            fileSelectBtn.addEventListener('click', () => excelFile.click());
+            excelFile.addEventListener('change', handleFileSelect);
+        }
+
+        uploadBtn.addEventListener('click', handleUpload);
+
+        // --- FIREBASE INIT ---
+        try {
+            if (typeof firebase !== 'undefined') {
+                firebase.initializeApp(firebaseConfig);
+
+                // Try to use named database
+                try {
+                    db = firebase.firestore(firebase.app(), 'student-delima');
+                    console.log('✅ Connected to student-delima database');
+                } catch (e) {
+                    console.warn('Named database not supported in compat mode, using default');
+                    db = firebase.firestore();
+                }
+
+                // Check session only after confirming basic JS is running
+                checkSession();
+            } else {
+                showError('Firebase SDK not loaded. Check internet connection.', loginAlert);
+            }
+        } catch (error) {
+            console.error('Firebase Error:', error);
+            showError('Firebase initialization failed: ' + error.message, loginAlert);
+        }
+
+        // --- FUNCTIONS ---
+
+        function checkSession() {
+            const session = localStorage.getItem(SESSION_KEY);
+            if (session === 'active') {
+                showDashboard();
+            } else {
+                showLogin();
+            }
+        }
+
+        function showLogin() {
+            loginPage.classList.remove('hidden');
+            dashboardPage.classList.add('hidden');
+        }
+
+        function showDashboard() {
+            loginPage.classList.add('hidden');
+            dashboardPage.classList.remove('hidden');
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const uid = userIdInput.value.trim();
+            const pass = passwordInput.value;
+
+            if (uid === ADMIN_CREDENTIALS.userId && pass === ADMIN_CREDENTIALS.password) {
+                localStorage.setItem(SESSION_KEY, 'active');
+                showAlert('Login successful! Redirecting...', 'success', loginAlert);
+                setTimeout(showDashboard, 1000);
+            } else {
+                showAlert('Invalid credentials.', 'error', loginAlert);
+            }
+        }
+
+        function handleLogout() {
+            localStorage.removeItem(SESSION_KEY);
+            showAlert('Logged out successfully', 'success', loginAlert);
+            showLogin();
+            loginForm.reset();
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                fileInfo.innerHTML = `
+                    <div style="background: rgba(79, 172, 254, 0.1); padding: 0.75rem; border-radius: 8px; border-left: 3px solid #4facfe;">
+                        <strong>Selected:</strong> ${file.name} (${(file.size / 1024).toFixed(2)} KB)
+                    </div>
+                `;
+                uploadBtn.disabled = false;
+            } else {
+                selectedFile = null;
+                fileInfo.textContent = '';
+                uploadBtn.disabled = true;
+            }
+        }
+
+        async function handleUpload() {
+            if (!selectedFile) {
+                showAlert('Please select a file first', 'error', dashboardAlert);
+                return;
+            }
+            if (!db) {
+                showAlert('Firebase not ready. Please refresh.', 'error', dashboardAlert);
+                return;
+            }
+
+            uploadBtn.disabled = true;
+            document.getElementById('uploadBtnText').innerHTML = '<span class="loading"></span> Processing...';
+            uploadProgress.innerHTML = '';
+            uploadProgress.classList.remove('hidden');
+
+            try {
+                updateProgress('Reading Excel file...');
+                const data = await readExcelFile(selectedFile);
+
+                if (data.length === 0) {
+                    showAlert('No valid data found in Excel.', 'error', dashboardAlert);
+                    return;
+                }
+
+                updateProgress(`Found ${data.length} records. Uploading to Firebase...`);
+                await uploadToFirebase(data);
+
+                updateProgress(`✅ Success! Uploaded ${data.length} records.`);
+                showAlert(`Successfully uploaded ${data.length} records!`, 'success', dashboardAlert);
+
+                // Clear file after success
+                setTimeout(() => {
+                    excelFile.value = '';
+                    selectedFile = null;
+                    fileInfo.textContent = '';
+                    uploadBtn.disabled = true;
+                }, 3000);
+
+            } catch (error) {
+                console.error(error);
+                showAlert(error.message, 'error', dashboardAlert);
+                updateProgress(`❌ Error: ${error.message}`);
+            } finally {
+                uploadBtn.disabled = false;
+                document.getElementById('uploadBtnText').textContent = 'Upload to Firebase';
+            }
+        }
+
+        async function readExcelFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const students = [];
+
+                        // 1. Loop through ALL sheets
+                        workbook.SheetNames.forEach(sheetName => {
+                            const sheet = workbook.Sheets[sheetName];
+                            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+                            // 2. Parse Rows (Skip header)
+                            for (let i = 1; i < jsonData.length; i++) {
+                                const row = jsonData[i];
+                                // Check for IC at index 2
+                                if (!row || row.length === 0 || !row[2]) continue;
+
+                                // Columns: BIL(0), NAMA(1), IC(2), ID(3), PASS(4)
+                                const namaPenuh = String(row[1] || '').trim();
+                                let ic = String(row[2] || '').trim();
+                                const delimaId = String(row[3] || '').trim();
+                                const password = String(row[4] || '').trim();
+
+                                // 3. Auto-fix IC padding (if < 12 digits, add leading zero)
+                                if (ic && /^\d+$/.test(ic) && ic.length < 12) {
+                                    ic = ic.padStart(12, '0');
+                                }
+
+                                // 4. Validate
+                                if (ic && ic.length >= 10) {
+                                    const email = delimaId ? `${delimaId.toLowerCase()}@delima.edu.my` : 'N/A';
+                                    students.push({
+                                        ic: ic,
+                                        name: namaPenuh || 'N/A',
+                                        delimaId: delimaId || 'N/A',
+                                        email: email,
+                                        password: password || 'N/A'
+                                    });
+                                }
+                            }
+                        });
+                        console.log(`Parsed ${students.length} from ${workbook.SheetNames.length} sheets`);
+                        resolve(students);
+                    } catch (err) {
+                        reject(new Error('Excel parse error: ' + err.message));
+                    }
+                };
+                reader.onerror = () => reject(new Error('File read error'));
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        async function uploadToFirebase(students) {
+            let batch = db.batch(); // Fixed: let, not const
+            let count = 0;
+            let totalBatchCount = 0;
+
+            const collectionRef = db.collection('students');
+
+            for (let i = 0; i < students.length; i++) {
+                const student = students[i];
+                const docRef = collectionRef.doc(student.ic);
+                batch.set(docRef, student, { merge: true });
+
+                count++;
+                if (count === 500 || i === students.length - 1) {
+                    totalBatchCount++;
+                    updateProgress(`Committing batch ${totalBatchCount} (${i + 1}/${students.length})...`);
+                    await batch.commit();
+
+                    if (i < students.length - 1) {
+                        batch = db.batch();
+                        count = 0;
+                    }
+                }
+            }
+        }
+
+        function showAlert(msg, type, container) {
+            // Default to correct container based on visibility if not specified
+            if (!container) {
+                container = dashboardPage.classList.contains('hidden') ? loginAlert : dashboardAlert;
+            }
+            container.innerHTML = `
+                <div class="alert alert-${type}">
+                    <span>${type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️'}</span>
+                    <span>${msg}</span>
+                </div>
+            `;
+            if (type !== 'info') setTimeout(() => container.innerHTML = '', 5000);
+        }
+
+        function updateProgress(msg) {
+            const div = document.createElement('div');
+            div.style.padding = '0.25rem 0';
+            div.textContent = msg;
+            uploadProgress.appendChild(div);
+            uploadProgress.scrollTop = uploadProgress.scrollHeight;
+        }
+    </script>
+</body>
+
+</html>

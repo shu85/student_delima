@@ -14,7 +14,7 @@
 
     <div class="container">
         <header class="header">
-            <h1 class="logo">📤 Initial Data Upload</h1>
+            <h1 class="logo">📤 Initial Data Upload (Standalone)</h1>
             <p class="subtitle">Upload Student Data from Excel to Firebase</p>
         </header>
 
@@ -54,11 +54,24 @@
                 style="margin-top: 2rem; padding: 1.5rem; background: rgba(79, 172, 254, 0.1); border-radius: 12px; border-left: 4px solid #4facfe;">
                 <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem;">ℹ️ Instructions</h3>
                 <ul style="color: var(--text-secondary); line-height: 1.8; padding-left: 1.5rem;">
-                    <li>This tool is for the initial data upload from the existing Excel file</li>
+                    <li><strong>This is a standalone version</strong> that works with file:// protocol (no server
+                        needed)</li>
                     <li>Select the file: <strong>ID DELIMA SMK KAMPUNG NANGKA.xlsx</strong></li>
                     <li>Excel columns: BIL, NAMA PENUH, NO. KP, ID DELIMA, KATA LALUAN</li>
-                    <li>Email will be auto-generated from DELIMA ID</li>
+                    <li>Email will be auto-generated from DELIMA ID (e.g., sk1234a@delima.edu.my)</li>
                     <li>Progress will be shown during upload</li>
+                </ul>
+            </div>
+
+            <!-- Troubleshooting -->
+            <div
+                style="margin-top: 1rem; padding: 1rem; background: rgba(245, 87, 108, 0.1); border-radius: 12px; border-left: 4px solid #f5576c;">
+                <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem;">⚠️ If Upload Fails</h3>
+                <ul style="color: var(--text-secondary); line-height: 1.6; padding-left: 1.5rem; font-size: 0.875rem;">
+                    <li>Press F12 to open browser console and check for errors</li>
+                    <li>Ensure you have internet connection</li>
+                    <li>Check Firebase Console → Firestore → Rules (may need write permissions)</li>
+                    <li>Try using a local server instead of file:// protocol</li>
                 </ul>
             </div>
 
@@ -72,10 +85,12 @@
 
     <!-- Include SheetJS library for Excel parsing -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <script type="module">
-        import { db } from './firebase-config.js';
-        import { collection, doc, setDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
+    <!-- Firebase JS SDK (Compatibility Mode - No ES6 Modules) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <script>
         // DOM Elements
         const excelFile = document.getElementById('excelFile');
         const fileSelectBtn = document.getElementById('fileSelectBtn');
@@ -89,10 +104,54 @@
         let selectedFile = null;
         let parsedData = null;
 
-        // Event Listeners
-        fileSelectBtn.addEventListener('click', () => excelFile.click());
-        excelFile.addEventListener('change', handleFileSelect);
+        // Event Listeners - Attach these FIRST
+        if (fileSelectBtn && excelFile) {
+            fileSelectBtn.addEventListener('click', () => {
+                console.log('Button clicked, triggering file input');
+                excelFile.click();
+            });
+            excelFile.addEventListener('change', handleFileSelect);
+        } else {
+            console.error('Critical Error: Input elements not found');
+            alert('Error: Input elements not found. Please refresh.');
+        }
+
         uploadBtn.addEventListener('click', handleUpload);
+
+        // Firebase Configuration (Inline - No Modules)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDPLmLAEHSdxXjN-SiyIjo9HbpJuQ1mEVg",
+            authDomain: "kns-hub-412a6.firebaseapp.com",
+            projectId: "kns-hub-412a6",
+            storageBucket: "kns-hub-412a6.firebasestorage.app",
+            messagingSenderId: "404861589600",
+            appId: "1:404861589600:web:03753ff77f32c5c0150b05",
+            measurementId: "G-5SFK7Z5T5E"
+        };
+
+        // Initialize Firebase
+        let db;
+        try {
+            if (typeof firebase !== 'undefined') {
+                firebase.initializeApp(firebaseConfig);
+                // Attempt to get named database if supported, otherwise fall back to default
+                try {
+                    db = firebase.firestore(firebase.app(), 'student-delima');
+                    console.log('✅ Connected to student-delima database');
+                } catch (e) {
+                    console.warn('Named database not supported in compat mode, using default');
+                    db = firebase.firestore();
+                }
+                console.log('✅ Firebase initialized successfully');
+                showAlert('Firebase connected successfully (student-delima)', 'success');
+            } else {
+                console.error('Firebase SDK not loaded');
+                showAlert('Firebase SDK not loaded. Check internet connection.', 'error');
+            }
+        } catch (error) {
+            console.error('❌ Firebase initialization error:', error);
+            showAlert('Firebase initialization failed: ' + error.message, 'error');
+        }
 
         // Handle File Select
         async function handleFileSelect(e) {
@@ -114,6 +173,7 @@
                     uploadBtn.disabled = false;
                     showAlert(`✅ Found ${parsedData.length} student records`, 'success');
                 } catch (error) {
+                    console.error('Parse error:', error);
                     showAlert('Error parsing file: ' + error.message, 'error');
                     parsedData = null;
                     uploadBtn.disabled = true;
@@ -154,11 +214,11 @@
                                 // Columns: BIL, NAMA PENUH, NO. KP, ID DELIMA, KATA LALUAN
                                 const bil = String(row[0] || '').trim();
                                 const namaPenuh = String(row[1] || '').trim();
-                                let noKP = String(row[2] || '').trim();
-                                const idDelima = String(row[3] || '').trim();
-                                const kataLaluan = String(row[4] || '').trim();
+                                let noKP = String(row[2] || '').trim();  // IC Number
+                                const idDelima = String(row[3] || '').trim();  // DELIMA ID
+                                const kataLaluan = String(row[4] || '').trim();  // Password
 
-                                // Fix: Pad IC with leading zero if less than 12 digits
+                                // Fix: Pad IC with leading zero if less than 12 digits (e.g. 90... -> 090...)
                                 if (noKP && /^\d+$/.test(noKP) && noKP.length < 12) {
                                     noKP = noKP.padStart(12, '0');
                                 }
@@ -174,7 +234,7 @@
                                         delimaId: idDelima || 'N/A',
                                         email: email,
                                         password: kataLaluan || 'N/A',
-                                        sourceSheet: sheetName // Track source sheet
+                                        sourceSheet: sheetName // Track source sheet for debugging
                                     });
                                 }
                             }
@@ -215,6 +275,11 @@
                 return;
             }
 
+            if (!db) {
+                showAlert('Firebase not initialized. Please refresh the page and try again.', 'error');
+                return;
+            }
+
             uploadBtn.disabled = true;
             document.getElementById('uploadBtnText').innerHTML = '<span class="loading"></span> Uploading...';
             uploadProgress.innerHTML = '';
@@ -223,6 +288,8 @@
             try {
                 // Upload to Firebase
                 updateProgress(`Starting upload of ${parsedData.length} student records...`);
+                updateProgress('Connecting to Firebase Firestore...');
+
                 await uploadToFirebase(parsedData);
 
                 // Success
@@ -233,6 +300,7 @@
                 console.error('Upload error:', error);
                 showAlert(`❌ Upload failed: ${error.message}`, 'error');
                 updateProgress(`\n❌ Error: ${error.message}`);
+                updateProgress(`\n💡 Check browser console (F12) for more details`);
             } finally {
                 uploadBtn.disabled = false;
                 document.getElementById('uploadBtnText').textContent = '🚀 Upload to Firebase';
@@ -241,41 +309,34 @@
 
         // Upload to Firebase
         async function uploadToFirebase(students) {
-            const studentsCollection = collection(db, 'students');
-
-            // Use batched writes for better performance (max 500 per batch)
-            const batchSize = 500;
-            let currentBatch = writeBatch(db);
-            let operationCount = 0;
-            let batchCount = 0;
+            let batch = db.batch(); // Fixed: let instead of const
+            let count = 0;
 
             for (let i = 0; i < students.length; i++) {
                 const student = students[i];
 
                 // Use IC as document ID for easy lookup and updates
-                const docRef = doc(studentsCollection, student.ic);
-                currentBatch.set(docRef, student, { merge: true });
+                const docRef = db.collection('students').doc(student.ic);
+                batch.set(docRef, student, { merge: true });
 
-                operationCount++;
+                count++;
 
-                // Commit batch when we reach the limit
-                if (operationCount === batchSize) {
-                    await currentBatch.commit();
-                    batchCount++;
-                    updateProgress(`✓ Uploaded batch ${batchCount} (${i + 1}/${students.length} records)`);
+                // Firebase batch limit is 500 operations
+                if (count === 500 || i === students.length - 1) {
+                    updateProgress(`Committing batch ${Math.ceil((i + 1) / 500)} (${i + 1}/${students.length} records)...`);
+                    await batch.commit();
 
-                    // Start new batch
-                    currentBatch = writeBatch(db);
-                    operationCount = 0;
+                    updateProgress(`✓ Batch committed successfully`);
+
+                    // Create new batch for remaining items
+                    if (i < students.length - 1) {
+                        batch = db.batch();
+                        count = 0;
+                    }
                 }
             }
 
-            // Commit remaining operations
-            if (operationCount > 0) {
-                await currentBatch.commit();
-                batchCount++;
-                updateProgress(`✓ Uploaded final batch (${students.length}/${students.length} records)`);
-            }
+            updateProgress(`✓ All ${students.length} records uploaded successfully!`);
         }
 
         // Update Progress
@@ -291,8 +352,6 @@
 
         // Show Alert
         function showAlert(message, type = 'info') {
-            alertContainer.innerHTML = '';
-
             const alertDiv = document.createElement('div');
             alertDiv.className = `alert alert-${type}`;
             alertDiv.innerHTML = `
@@ -300,6 +359,7 @@
                 <span>${message}</span>
             `;
 
+            alertContainer.innerHTML = '';
             alertContainer.appendChild(alertDiv);
         }
 

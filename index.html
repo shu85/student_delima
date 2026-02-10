@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,29 +8,27 @@
     <title>Student Portal - SMK Kampung Nangka</title>
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <div class="app-background"></div>
-    
+
     <div class="container">
         <header class="header">
             <h1 class="logo">🎓 Student Portal</h1>
             <p class="subtitle">SMK Kampung Nangka DELIMA Credential Lookup</p>
+            <div style="font-size: 0.8rem; color: #667eea; margin-top: 0.5rem; opacity: 0.8;">
+                Database: student-delima
+            </div>
         </header>
 
         <div class="card" style="max-width: 600px; margin: 0 auto;">
             <form id="searchForm">
                 <div class="form-group">
                     <label for="icNumber" class="form-label">Enter Your IC Number</label>
-                    <input 
-                        type="text" 
-                        id="icNumber" 
-                        class="form-input" 
-                        placeholder="e.g., 001234567890"
-                        maxlength="12"
-                        required
-                        autocomplete="off"
-                    >
-                    <small style="color: var(--text-secondary); font-size: 0.875rem; display: block; margin-top: 0.5rem;">
+                    <input type="text" id="icNumber" class="form-input" placeholder="e.g., 001234567890" maxlength="12"
+                        required autocomplete="off">
+                    <small
+                        style="color: var(--text-secondary); font-size: 0.875rem; display: block; margin-top: 0.5rem;">
                         Enter your 12-digit IC number without dashes
                     </small>
                 </div>
@@ -47,12 +46,172 @@
         </div>
 
         <div class="text-center mt-2">
-            <a href="admin.html" style="color: var(--text-secondary); text-decoration: none; font-size: 0.875rem; transition: color var(--transition-fast);">
+            <a href="admin-standalone.html"
+                style="color: var(--text-secondary); text-decoration: none; font-size: 0.875rem; transition: color var(--transition-fast);">
                 Admin Login
             </a>
         </div>
     </div>
 
-    <script type="module" src="student-portal.js"></script>
+    <!-- Firebase SDK (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <script>
+        // --- CONFIGURATION ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDPLmLAEHSdxXjN-SiyIjo9HbpJuQ1mEVg",
+            authDomain: "kns-hub-412a6.firebaseapp.com",
+            projectId: "kns-hub-412a6",
+            storageBucket: "kns-hub-412a6.firebasestorage.app",
+            messagingSenderId: "404861589600",
+            appId: "1:404861589600:web:03753ff77f32c5c0150b05",
+            measurementId: "G-5SFK7Z5T5E"
+        };
+
+        // --- DOM PROPS ---
+        const searchForm = document.getElementById('searchForm');
+        const icNumberInput = document.getElementById('icNumber');
+        const searchBtn = document.getElementById('searchBtn');
+        const alertContainer = document.getElementById('alertContainer');
+        const resultsContainer = document.getElementById('resultsContainer');
+        let db;
+
+        // --- INIT ---
+        searchForm.addEventListener('submit', handleSearch);
+
+        try {
+            if (typeof firebase !== 'undefined') {
+                firebase.initializeApp(firebaseConfig);
+
+                // Try named database
+                try {
+                    db = firebase.firestore(firebase.app(), 'student-delima');
+                    console.log('Connected to student-delima');
+                } catch (e) {
+                    console.warn('Named db failed, using default');
+                    db = firebase.firestore();
+                }
+            } else {
+                showAlert('Firebase SDK not loaded', 'error');
+            }
+        } catch (error) {
+            console.error(error);
+            showAlert('Firebase init failed: ' + error.message, 'error');
+        }
+
+        // --- FUNCTIONS ---
+        async function handleSearch(e) {
+            e.preventDefault();
+            let icNumber = icNumberInput.value.trim();
+
+            if (!icNumber) {
+                showAlert('Please enter your IC number', 'error');
+                return;
+            }
+
+            // AUTO-FIX: Pad IC if length is 11 (common error for 2000s kids)
+            if (/^\d+$/.test(icNumber) && icNumber.length < 12) {
+                icNumber = icNumber.padStart(12, '0');
+                console.log('Auto-padded IC to:', icNumber);
+            }
+
+            // Validate
+            if (icNumber.length !== 12 || !/^\d+$/.test(icNumber)) {
+                showAlert('Please enter a valid 12-digit IC number', 'error');
+                return;
+            }
+
+            // UI Loading
+            searchBtn.disabled = true;
+            searchBtn.innerHTML = '<span class="loading"></span> Searching...';
+            alertContainer.innerHTML = '';
+            resultsContainer.classList.add('hidden');
+
+            try {
+                if (!db) throw new Error('Database not connected');
+
+                const studentsRef = db.collection('students');
+                // We query by document ID since we stored them that way
+                const docRef = studentsRef.doc(icNumber);
+                const docSnap = await docRef.get();
+
+                if (docSnap.exists) {
+                    displayResults(docSnap.data());
+                    showAlert('Student record found!', 'success');
+                } else {
+                    // Fallback: Query by 'ic' field just in case
+                    const q = studentsRef.where('ic', '==', icNumber).limit(1);
+                    const querySnapshot = await q.get();
+
+                    if (!querySnapshot.empty) {
+                        displayResults(querySnapshot.docs[0].data());
+                        showAlert('Student record found!', 'success');
+                    } else {
+                        showAlert('No student found with this IC number.', 'error');
+                    }
+                }
+
+            } catch (error) {
+                console.error('Search error:', error);
+                showAlert('An error occurred. Check internet connection.', 'error');
+            } finally {
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Search My Credentials';
+            }
+        }
+
+        function displayResults(data) {
+            resultsContainer.innerHTML = `
+                <div class="result-card">
+                    <div class="result-label">Student Name</div>
+                    <div class="result-value" style="font-size: 1.1rem; color: #fff; text-transform: uppercase;">${data.name || 'N/A'}</div>
+                </div>
+
+                <div class="result-card">
+                    <div class="result-label">DELIMA ID</div>
+                    <div class="result-value">${data.delimaId || 'N/A'}</div>
+                    <button class="copy-btn" onclick="copyToClipboard('${data.delimaId}')">
+                        📋 Copy ID
+                    </button>
+                </div>
+                
+                <div class="result-card">
+                    <div class="result-label">Password</div>
+                    <div class="result-value">${data.password || 'N/A'}</div>
+                    <button class="copy-btn" onclick="copyToClipboard('${data.password}')">
+                        📋 Copy Password
+                    </button>
+                </div>
+                
+                <div style="margin-top: 1rem; padding: 1rem; background: rgba(102, 126, 234, 0.1); border-radius: 12px; border-left: 4px solid #667eea;">
+                    <small style="color: var(--text-secondary); line-height: 1.6;">
+                        <strong>Important:</strong> Keep your credentials safe. 
+                        Your full email is <strong>${data.email}</strong>
+                    </small>
+                </div>
+            `;
+            resultsContainer.classList.remove('hidden');
+        }
+
+        function showAlert(message, type) {
+            alertContainer.innerHTML = `
+                <div class="alert alert-${type}">
+                    <span>${type === 'error' ? '❌' : '✅'}</span>
+                    <span>${message}</span>
+                </div>
+            `;
+            if (type === 'success') {
+                setTimeout(() => alertContainer.innerHTML = '', 5000);
+            }
+        }
+
+        window.copyToClipboard = function (text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Copied to clipboard!');
+            }).catch(console.error);
+        }
+    </script>
 </body>
+
 </html>
