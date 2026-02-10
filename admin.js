@@ -176,20 +176,26 @@ async function readExcelFile(file) {
                     const row = jsonData[i];
 
                     // Skip empty rows
-                    if (!row || row.length === 0 || !row[0]) continue;
+                    if (!row || row.length === 0 || !row[2]) continue;
 
                     // Extract data based on column positions
-                    const ic = String(row[0] || '').trim();
-                    const delimaId = String(row[1] || '').trim();
-                    const email = String(row[2] || '').trim();
-                    const password = String(row[3] || '').trim();
+                    // Columns: BIL, NAMA PENUH, NO. KP, ID DELIMA, KATA LALUAN
+                    const bil = String(row[0] || '').trim();
+                    const namaPenuh = String(row[1] || '').trim();
+                    const ic = String(row[2] || '').trim();
+                    const delimaId = String(row[3] || '').trim();
+                    const password = String(row[4] || '').trim();
 
                     // Validate IC number
                     if (ic && ic.length >= 10) {
+                        // Generate email from DELIMA ID
+                        const email = delimaId ? `${delimaId.toLowerCase()}@delima.edu.my` : 'N/A';
+
                         students.push({
                             ic: ic,
+                            name: namaPenuh || 'N/A',
                             delimaId: delimaId || 'N/A',
-                            email: email || 'N/A',
+                            email: email,
                             password: password || 'N/A'
                         });
                     }

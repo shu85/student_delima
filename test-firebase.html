@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Connection Test</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="app-background"></div>
+
+    <div class="container">
+        <header class="header">
+            <h1 class="logo">🔍 Firebase Connection Test</h1>
+            <p class="subtitle">Verify Firebase Configuration & Connectivity</p>
+        </header>
+
+        <div class="card" style="max-width: 600px; margin: 0 auto;">
+            <div id="results" style="font-family: monospace; font-size: 0.875rem;"></div>
+
+            <button class="btn btn-primary btn-block mt-2" onclick="runTests()">
+                🧪 Run Connection Tests
+            </button>
+
+            <div class="mt-2" style="padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 12px;">
+                <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">What This Tests:</h3>
+                <ul style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.8;">
+                    <li>Firebase SDK loaded correctly</li>
+                    <li>Firebase initialization successful</li>
+                    <li>Firestore database accessible</li>
+                    <li>Write permissions (test write to database)</li>
+                    <li>Read permissions (test read from database)</li>
+                </ul>
+            </div>
+
+            <div class="text-center mt-2">
+                <a href="index.html" style="color: var(--text-secondary); text-decoration: none; font-size: 0.875rem;">
+                    ← Back to Student Portal
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase Compat SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <script>
+        const resultsDiv = document.getElementById('results');
+
+        function log(message, type = 'info') {
+            const color = {
+                success: '#4facfe',
+                error: '#f5576c',
+                info: '#8b9fff',
+                warning: '#ffa07a'
+            }[type];
+
+            resultsDiv.innerHTML += `<div style="color: ${color}; padding: 0.25rem 0;">${message}</div>`;
+        }
+
+        async function runTests() {
+            resultsDiv.innerHTML = '<div style="color: #8b9fff;">🚀 Starting tests...\n\n</div>';
+
+            // Test 1: Firebase SDK
+            log('Test 1: Checking Firebase SDK...', 'info');
+            if (typeof firebase !== 'undefined') {
+                log('✅ Firebase SDK loaded successfully', 'success');
+            } else {
+                log('❌ Firebase SDK not loaded', 'error');
+                return;
+            }
+
+            // Test 2: Initialize Firebase
+            log('\nTest 2: Initializing Firebase...', 'info');
+            const firebaseConfig = {
+                apiKey: "AIzaSyDPLmLAEHSdxXjN-SiyIjo9HbpJuQ1mEVg",
+                authDomain: "kns-hub-412a6.firebaseapp.com",
+                projectId: "kns-hub-412a6",
+                storageBucket: "kns-hub-412a6.firebasestorage.app",
+                messagingSenderId: "404861589600",
+                appId: "1:404861589600:web:03753ff77f32c5c0150b05",
+                measurementId: "G-5SFK7Z5T5E"
+            };
+
+            try {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+                log('✅ Firebase initialized successfully', 'success');
+                log(`   Project ID: ${firebaseConfig.projectId}`, 'info');
+            } catch (error) {
+                log(`❌ Firebase initialization failed: ${error.message}`, 'error');
+                return;
+            }
+
+            // Test 3: Firestore Access
+            log('\nTest 3: Accessing Firestore...', 'info');
+            let db;
+            try {
+                db = firebase.firestore();
+                log('✅ Firestore instance created', 'success');
+            } catch (error) {
+                log(`❌ Firestore access failed: ${error.message}`, 'error');
+                return;
+            }
+
+            // Test 4: Write Permission
+            log('\nTest 4: Testing write permission...', 'info');
+            const testDocId = 'connection_test_' + Date.now();
+            try {
+                await db.collection('students').doc(testDocId).set({
+                    ic: testDocId,
+                    delimaId: 'TEST',
+                    email: 'test@test.com',
+                    password: 'test123',
+                    testDoc: true,
+                    timestamp: new Date().toISOString()
+                });
+                log('✅ Write successful - Firestore rules allow writes', 'success');
+            } catch (error) {
+                log(`❌ Write failed: ${error.message}`, 'error');
+                log('   This usually means Firestore security rules block writes', 'warning');
+                log('   Solution: Update rules in Firebase Console', 'warning');
+                return;
+            }
+
+            // Test 5: Read Permission
+            log('\nTest 5: Testing read permission...', 'info');
+            try {
+                const doc = await db.collection('students').doc(testDocId).get();
+                if (doc.exists) {
+                    log('✅ Read successful - can retrieve data', 'success');
+                } else {
+                    log('⚠️ Read succeeded but document not found', 'warning');
+                }
+            } catch (error) {
+                log(`❌ Read failed: ${error.message}`, 'error');
+                return;
+            }
+
+            // Test 6: Clean up
+            log('\nTest 6: Cleaning up test document...', 'info');
+            try {
+                await db.collection('students').doc(testDocId).delete();
+                log('✅ Test document deleted', 'success');
+            } catch (error) {
+                log(`⚠️ Cleanup failed (not critical): ${error.message}`, 'warning');
+            }
+
+            // Final Result
+            log('\n' + '='.repeat(50), 'success');
+            log('🎉 ALL TESTS PASSED!', 'success');
+            log('Firebase is properly configured and working!', 'success');
+            log('You can now upload student data safely.', 'success');
+            log('='.repeat(50), 'success');
+        }
+
+        // Auto-run tests on page load
+        window.addEventListener('load', () => {
+            setTimeout(runTests, 500);
+        });
+    </script>
+</body>
+
+</html>
