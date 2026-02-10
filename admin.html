@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Admin Panel - SMK Kampung Nangka Student Portal">
+    <title>Admin Panel - Student Portal</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="app-background"></div>
+
+    <div class="container">
+        <!-- Login Page -->
+        <div id="loginPage">
+            <header class="header">
+                <h1 class="logo">🔐 Admin Login</h1>
+                <p class="subtitle">SMK Kampung Nangka Student Portal Administration</p>
+            </header>
+
+            <div class="card" style="max-width: 500px; margin: 0 auto;">
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="userId" class="form-label">User ID</label>
+                        <input type="text" id="userId" class="form-input" placeholder="Enter admin user ID" required
+                            autocomplete="username">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" id="password" class="form-input" placeholder="Enter password" required
+                            autocomplete="current-password">
+                    </div>
+
+                    <div id="loginAlert"></div>
+
+                    <button type="submit" class="btn btn-primary btn-block" id="loginBtn">
+                        Login to Admin Panel
+                    </button>
+                </form>
+
+                <div class="text-center mt-2">
+                    <a href="index.html"
+                        style="color: var(--text-secondary); text-decoration: none; font-size: 0.875rem;">
+                        ← Back to Student Portal
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Page -->
+        <div id="dashboardPage" class="hidden">
+            <header class="header">
+                <h1 class="logo">📊 Admin Dashboard</h1>
+                <p class="subtitle">Student Data Management</p>
+            </header>
+
+            <div class="card" style="max-width: 800px; margin: 0 auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                    <h2 style="font-size: 1.5rem; font-weight: 600;">Upload Student Data</h2>
+                    <button class="btn btn-secondary" id="logoutBtn">
+                        Logout
+                    </button>
+                </div>
+
+                <div id="dashboardAlert"></div>
+
+                <!-- File Upload Section -->
+                <div class="form-group">
+                    <label for="excelFile" class="form-label">Select Excel File</label>
+                    <div style="position: relative;">
+                        <input type="file" id="excelFile" accept=".xlsx,.xls" style="display: none;">
+                        <button type="button" class="btn btn-secondary btn-block" id="fileSelectBtn">
+                            📁 Choose Excel File
+                        </button>
+                    </div>
+                    <div id="fileInfo" class="mt-1" style="color: var(--text-secondary); font-size: 0.875rem;"></div>
+                </div>
+
+                <button class="btn btn-success btn-block" id="uploadBtn" disabled>
+                    <span id="uploadBtnText">Upload to Firebase</span>
+                </button>
+
+                <!-- Upload Progress -->
+                <div id="uploadProgress" class="hidden mt-2"></div>
+
+                <!-- Instructions -->
+                <div
+                    style="margin-top: 2rem; padding: 1.5rem; background: rgba(255, 255, 255, 0.05); border-radius: 12px;">
+                    <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem;">📝 Instructions</h3>
+                    <ul style="color: var(--text-secondary); line-height: 1.8; padding-left: 1.5rem;">
+                        <li>Excel file should contain student data with columns: IC Number, DELIMA ID, Email, Password
+                        </li>
+                        <li>The first row should contain headers (will be skipped during import)</li>
+                        <li>IC numbers should be 12 digits without dashes</li>
+                        <li>Uploading will add/update student records in the database</li>
+                        <li>Duplicate IC numbers will be updated with the latest information</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include SheetJS library for Excel parsing -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script type="module" src="admin.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Initial Data Upload - SMK Kampung Nangka Student Portal">
+    <title>Initial Data Upload - Student Portal</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="app-background"></div>
+
+    <div class="container">
+        <header class="header">
+            <h1 class="logo">📤 Initial Data Upload</h1>
+            <p class="subtitle">Upload Student Data from Excel to Firebase</p>
+        </header>
+
+        <div class="card" style="max-width: 700px; margin: 0 auto;">
+            <div id="alertContainer"></div>
+
+            <!-- File Upload Section -->
+            <div class="form-group">
+                <label for="excelFile" class="form-label">Select Excel File</label>
+                <div style="position: relative;">
+                    <input type="file" id="excelFile" accept=".xlsx,.xls" style="display: none;">
+                    <button type="button" class="btn btn-secondary btn-block" id="fileSelectBtn">
+                        📁 Choose Excel File (ID DELIMA SMK KAMPUNG NANGKA.xlsx)
+                    </button>
+                </div>
+                <div id="fileInfo" class="mt-1" style="color: var(--text-secondary); font-size: 0.875rem;"></div>
+            </div>
+
+            <button class="btn btn-primary btn-block" id="uploadBtn" disabled>
+                <span id="uploadBtnText">🚀 Upload to Firebase</span>
+            </button>
+
+            <!-- Upload Progress -->
+            <div id="uploadProgress" class="hidden mt-2"
+                style="max-height: 300px; overflow-y: auto; background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 12px;">
+            </div>
+
+            <!-- Preview Section -->
+            <div id="previewSection" class="hidden mt-2">
+                <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem;">📋 Preview (First 5 Records)
+                </h3>
+                <div id="previewContent"></div>
+            </div>
+
+            <!-- Instructions -->
+            <div
+                style="margin-top: 2rem; padding: 1.5rem; background: rgba(79, 172, 254, 0.1); border-radius: 12px; border-left: 4px solid #4facfe;">
+                <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem;">ℹ️ Instructions</h3>
+                <ul style="color: var(--text-secondary); line-height: 1.8; padding-left: 1.5rem;">
+                    <li>This tool is for the initial data upload from the existing Excel file</li>
+                    <li>Select the file: <strong>ID DELIMA SMK KAMPUNG NANGKA.xlsx</strong></li>
+                    <li>The tool will automatically parse student data and upload to Firebase</li>
+                    <li>Data structure: IC Number, DELIMA ID, Email, Password</li>
+                    <li>Progress will be shown during upload</li>
+                </ul>
+            </div>
+
+            <div class="text-center mt-2">
+                <a href="index.html" style="color: var(--text-secondary); text-decoration: none; font-size: 0.875rem;">
+                    ← Back to Student Portal
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include SheetJS library for Excel parsing -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script type="module">
+        import { db } from './firebase-config.js';
+        import { collection, doc, setDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+        // DOM Elements
+        const excelFile = document.getElementById('excelFile');
+        const fileSelectBtn = document.getElementById('fileSelectBtn');
+        const fileInfo = document.getElementById('fileInfo');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const alertContainer = document.getElementById('alertContainer');
+        const previewSection = document.getElementById('previewSection');
+        const previewContent = document.getElementById('previewContent');
+
+        let selectedFile = null;
+        let parsedData = null;
+
+        // Event Listeners
+        fileSelectBtn.addEventListener('click', () => excelFile.click());
+        excelFile.addEventListener('change', handleFileSelect);
+        uploadBtn.addEventListener('click', handleUpload);
+
+        // Handle File Select
+        async function handleFileSelect(e) {
+            const file = e.target.files[0];
+
+            if (file) {
+                selectedFile = file;
+                fileInfo.innerHTML = `
+                    <div style="background: rgba(79, 172, 254, 0.1); padding: 0.75rem; border-radius: 8px; border-left: 3px solid #4facfe;">
+                        <strong>Selected:</strong> ${file.name} (${(file.size / 1024).toFixed(2)} KB)
+                    </div>
+                `;
+
+                // Parse and preview
+                try {
+                    showAlert('Parsing Excel file...', 'info');
+                    parsedData = await readExcelFile(file);
+                    showPreview(parsedData);
+                    uploadBtn.disabled = false;
+                    showAlert(`✅ Found ${parsedData.length} student records`, 'success');
+                } catch (error) {
+                    showAlert('Error parsing file: ' + error.message, 'error');
+                    parsedData = null;
+                    uploadBtn.disabled = true;
+                }
+            } else {
+                selectedFile = null;
+                parsedData = null;
+                fileInfo.textContent = '';
+                uploadBtn.disabled = true;
+                previewSection.classList.add('hidden');
+            }
+        }
+
+        // Read Excel File
+        async function readExcelFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+
+                        // Get first sheet
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+                        console.log('Raw data:', jsonData);
+
+                        // Parse data (skip header row at index 0)
+                        const students = [];
+                        for (let i = 1; i < jsonData.length; i++) {
+                            const row = jsonData[i];
+
+                            // Skip empty rows
+                            if (!row || row.length === 0 || !row[0]) continue;
+
+                            // Extract data based on actual column positions
+                            // Column 0: IC, Column 1: DELIMA ID, Column 2: Email, Column 3: Password
+                            const ic = String(row[0] || '').trim();
+                            const delimaId = String(row[1] || '').trim();
+                            const email = String(row[2] || '').trim();
+                            const password = String(row[3] || '').trim();
+
+                            // Validate IC number (should exist and be numeric)
+                            if (ic && /^\d+$/.test(ic)) {
+                                students.push({
+                                    ic: ic,
+                                    delimaId: delimaId || 'N/A',
+                                    email: email || 'N/A',
+                                    password: password || 'N/A'
+                                });
+                            }
+                        }
+
+                        console.log('Parsed students:', students);
+                        resolve(students);
+                    } catch (error) {
+                        reject(new Error('Failed to parse Excel file: ' + error.message));
+                    }
+                };
+
+                reader.onerror = () => reject(new Error('Failed to read file'));
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        // Show Preview
+        function showPreview(data) {
+            const preview = data.slice(0, 5);
+            previewContent.innerHTML = preview.map((student, index) => `
+                <div class="result-card">
+                    <strong>Record ${index + 1}:</strong><br>
+                    IC: ${student.ic}<br>
+                    DELIMA ID: ${student.delimaId}<br>
+                    Email: ${student.email}<br>
+                    Password: ${student.password}
+                </div>
+            `).join('');
+            previewSection.classList.remove('hidden');
+        }
+
+        // Handle Upload
+        async function handleUpload() {
+            if (!parsedData || parsedData.length === 0) {
+                showAlert('No data to upload', 'error');
+                return;
+            }
+
+            uploadBtn.disabled = true;
+            document.getElementById('uploadBtnText').innerHTML = '<span class="loading"></span> Uploading...';
+            uploadProgress.innerHTML = '';
+            uploadProgress.classList.remove('hidden');
+
+            try {
+                // Upload to Firebase
+                updateProgress(`Starting upload of ${parsedData.length} student records...`);
+                await uploadToFirebase(parsedData);
+
+                // Success
+                updateProgress(`\n✅ SUCCESS! All ${parsedData.length} student records uploaded to Firebase!`);
+                showAlert(`🎉 Successfully uploaded ${parsedData.length} student records to Firebase`, 'success');
+
+            } catch (error) {
+                console.error('Upload error:', error);
+                showAlert(`❌ Upload failed: ${error.message}`, 'error');
+                updateProgress(`\n❌ Error: ${error.message}`);
+            } finally {
+                uploadBtn.disabled = false;
+                document.getElementById('uploadBtnText').textContent = '🚀 Upload to Firebase';
+            }
+        }
+
+        // Upload to Firebase
+        async function uploadToFirebase(students) {
+            const studentsCollection = collection(db, 'students');
+
+            // Use batched writes for better performance (max 500 per batch)
+            const batchSize = 500;
+            let currentBatch = writeBatch(db);
+            let operationCount = 0;
+            let batchCount = 0;
+
+            for (let i = 0; i < students.length; i++) {
+                const student = students[i];
+
+                // Use IC as document ID for easy lookup and updates
+                const docRef = doc(studentsCollection, student.ic);
+                currentBatch.set(docRef, student, { merge: true });
+
+                operationCount++;
+
+                // Commit batch when we reach the limit
+                if (operationCount === batchSize) {
+                    await currentBatch.commit();
+                    batchCount++;
+                    updateProgress(`✓ Uploaded batch ${batchCount} (${i + 1}/${students.length} records)`);
+
+                    // Start new batch
+                    currentBatch = writeBatch(db);
+                    operationCount = 0;
+                }
+            }
+
+            // Commit remaining operations
+            if (operationCount > 0) {
+                await currentBatch.commit();
+                batchCount++;
+                updateProgress(`✓ Uploaded final batch (${students.length}/${students.length} records)`);
+            }
+        }
+
+        // Update Progress
+        function updateProgress(message) {
+            const progressDiv = document.createElement('div');
+            progressDiv.style.cssText = 'padding: 0.25rem 0; color: var(--text-secondary); font-size: 0.875rem; font-family: monospace;';
+            progressDiv.textContent = message;
+            uploadProgress.appendChild(progressDiv);
+
+            // Auto-scroll to bottom
+            uploadProgress.scrollTop = uploadProgress.scrollHeight;
+        }
+
+        // Show Alert
+        function showAlert(message, type = 'info') {
+            alertContainer.innerHTML = '';
+
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.innerHTML = `
+                <span>${getAlertIcon(type)}</span>
+                <span>${message}</span>
+            `;
+
+            alertContainer.appendChild(alertDiv);
+        }
+
+        // Get Alert Icon
+        function getAlertIcon(type) {
+            const icons = {
+                error: '❌',
+                success: '✅',
+                info: 'ℹ️'
+            };
+            return icons[type] || icons.info;
+        }
+    </script>
+</body>
+
+</html>

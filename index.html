@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SMK Kampung Nangka Student Portal - Check your DELIMA credentials">
+    <title>Student Portal - SMK Kampung Nangka</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-background"></div>
+    
+    <div class="container">
+        <header class="header">
+            <h1 class="logo">🎓 Student Portal</h1>
+            <p class="subtitle">SMK Kampung Nangka DELIMA Credential Lookup</p>
+        </header>
+
+        <div class="card" style="max-width: 600px; margin: 0 auto;">
+            <form id="searchForm">
+                <div class="form-group">
+                    <label for="icNumber" class="form-label">Enter Your IC Number</label>
+                    <input 
+                        type="text" 
+                        id="icNumber" 
+                        class="form-input" 
+                        placeholder="e.g., 001234567890"
+                        maxlength="12"
+                        required
+                        autocomplete="off"
+                    >
+                    <small style="color: var(--text-secondary); font-size: 0.875rem; display: block; margin-top: 0.5rem;">
+                        Enter your 12-digit IC number without dashes
+                    </small>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block" id="searchBtn">
+                    Search My Credentials
+                </button>
+            </form>
+
+            <!-- Alert Messages -->
+            <div id="alertContainer"></div>
+
+            <!-- Results Display -->
+            <div id="resultsContainer" class="hidden mt-2"></div>
+        </div>
+
+        <div class="text-center mt-2">
+            <a href="admin.html" style="color: var(--text-secondary); text-decoration: none; font-size: 0.875rem; transition: color var(--transition-fast);">
+                Admin Login
+            </a>
+        </div>
+    </div>
+
+    <script type="module" src="student-portal.js"></script>
+</body>
+</html>
